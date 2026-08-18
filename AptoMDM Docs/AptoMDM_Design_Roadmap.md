@@ -1,7 +1,16 @@
 # AptoMDM 2026 — Design Roadmap
 
-> Version 1.0 — Initial roadmap. Structured on the AptoWMS 2026 design methodology (phase → module → 5-layer design), applied to a Master Data Management platform per the Senior Architect Mindset (Golden Record, Match/Merge, Survivorship, Governance, Distribution).
+> **Version 1.1** — current
 > August 2026 | Confidential — Apto Engineering
+
+---
+
+## Version History
+
+| Version | Date | Changed by | Summary of changes |
+|---|---|---|---|
+| **1.1** | Aug 2026 | Architecture review | **Phase 4 expanded from 3 modules to 7** to make ERP/source-system integration a first-class, method-agnostic capability rather than an implicit assumption inside the generic connector framework. Added: **4.4 Connector Protocol Adapter Library** (IDoc/ALE, BAPI/RFC, OData/REST, SOAP, DB interface tables, CDC, iPaaS/middleware — reusable transport adapters, not per-ERP code), **4.5 ERP-Specific Connector Catalog** (packaged connectors for SAP ECC, SAP S/4HANA, Oracle EBS, Oracle Fusion, MS Dynamics 365, NetSuite, Workday, Generic/Other), **4.6 Source System Role & Precedence Policy** (contributing-source vs. system-of-record-deference decision per domain per ERP — the governance question that sits above connectivity), **4.7 Middleware / iPaaS Passthrough Integration** (MuleSoft, Boomi, SAP CPI, Azure Integration Services as an alternative to point-to-point connectors for clients who already run an integration bus). Phase Overview table and Design Order Summary updated to reflect the 4.1–4.7 sequence. No changes to Phases 1–3 or 5–16 canonical model, matching, survivorship, or governance logic — this revision is additive and isolated to Phase 4. |
+| 1.0 | Aug 2026 | Initial draft | Initial 16-phase, ~55-module roadmap authored from the Senior Architect Mindset document, structured on the AptoWMS 2026 design methodology (phase → module → 5-layer design: Process flow, Business rules, UI screens, DB schema, Events). |
 
 ---
 
@@ -39,7 +48,7 @@ Complete all 5 layers before moving to the next module. A module is not "done" i
 | 1 | Business Domain & Platform Foundation | Who are we mastering data for, and on what platform? |
 | 2 | Canonical Data Model | What is the authoritative shape of each entity? |
 | 3 | Metadata Architecture | How is the platform configured without code changes? |
-| 4 | Source System Integration Architecture | How do systems connect to MDM? |
+| 4 | Source System Integration Architecture | How do systems connect to MDM — by any method, any ERP? |
 | 5 | Data Ingestion | How does data physically arrive? |
 | 6 | Standardization & Validation | Is the data clean and comparable? |
 | 7 | Matching Engine | Are two records the same real-world entity? |
@@ -546,6 +555,110 @@ Complete all 5 layers before moving to the next module. A module is not "done" i
 
 **4.3.5 Events**
 - `SourceTrustScoreChanged`
+
+---
+
+### 4.4 Connector Protocol Adapter Library
+
+**4.4.1 Process flow**
+- How each transport/protocol an ERP might use is built once as a reusable adapter, independent of any single ERP vendor: IDoc/ALE, BAPI/RFC, OData v2/v4, SOAP, DB-level interface tables, file drop (flat file/CSV/XML), CDC (log-based change capture), and generic REST/webhook
+- How a new ERP connector (4.5) is assembled by composing one or more existing protocol adapters rather than writing new transport code
+
+**4.4.2 Business rules**
+- A protocol adapter is ERP-agnostic by construction — "OData adapter" must work identically whether the target is SAP S/4HANA, Oracle Fusion, or Dynamics 365; ERP-specific behavior belongs in 4.5, never in the adapter itself
+- Every adapter must implement the same lifecycle contract (connect, authenticate, extract/receive, acknowledge, disconnect) so 4.1's connector framework can orchestrate any of them uniformly
+- Adapters must support both directions where the underlying protocol allows it (e.g. OData adapter used for both inbound pull and outbound write-back) rather than shipping separate read-only and write-only implementations
+
+**4.4.3 UI screens**
+- Web: Protocol adapter catalog (list of available adapters, versions, supported directions)
+- Web: Adapter capability matrix (which adapters support real-time vs. batch, push vs. pull)
+
+**4.4.4 DB schema**
+- `MDM_PROTOCOL_ADAPTER` table
+- `MDM_ADAPTER_CAPABILITY` table
+
+**4.4.5 Events**
+- `AdapterHealthCheckFailed`
+
+---
+
+### 4.5 ERP-Specific Connector Catalog
+
+**4.5.1 Process flow**
+- How packaged, pre-built connectors for major ERP families are onboarded, each assembled from 4.4's protocol adapters plus that ERP's specific field defaults, session/auth handling, and known data quirks:
+  - **SAP ECC** — IDoc/ALE (inbound), BAPI/RFC (write-back, e.g. `BAPI_CUSTOMER_CREATEFROMDATA1`), flat-file extract
+  - **SAP S/4HANA** — OData v2/v4, CDS view extraction, SLT/CDC for near-real-time
+  - **Oracle E-Business Suite** — interface tables + concurrent program triggers, SOAP
+  - **Oracle Fusion Cloud** — REST API, BICC bulk extracts
+  - **Microsoft Dynamics 365** — Dataverse Web API, CDC
+  - **NetSuite** — SuiteTalk (SOAP/REST)
+  - **Workday** (HR/Employee domain) — RaaS reports, SOAP/REST
+  - **Generic/Other** — configurable REST/file adapter for any ERP not yet packaged, built entirely from 4.4 primitives
+- How a connector version is validated against a specific ERP release (e.g. S/4HANA 2023 vs. 2025) before being marked supported
+
+**4.5.2 Business rules**
+- Every packaged connector must declare its supported ERP version range explicitly — "works with SAP" is not a valid support statement
+- A connector's ERP-specific mandatory-field and default-value handling lives entirely inside the connector's own configuration, never leaking into the platform's canonical model (2.x) or matching engine (7.x)
+- Adding a new ERP to the catalog must never require changes to Phases 1–3 or 5–16 — if it does, that is treated as an architecture defect, not an acceptable cost of onboarding
+- SAP ECC-to-S/4HANA (or equivalent legacy-to-cloud) migrations must be supported as two connectors coexisting for the same source system during a transition window, not a forced single-connector cutover
+
+**4.5.3 UI screens**
+- Web: ERP connector catalog (browse, select, configure per source system from 4.1)
+- Web: Connector version compatibility checker
+
+**4.5.4 DB schema**
+- `MDM_ERP_CONNECTOR_PACKAGE` table (references `MDM_PROTOCOL_ADAPTER` from 4.4)
+- `MDM_ERP_CONNECTOR_VERSION_SUPPORT` table
+
+**4.5.5 Events**
+- `ERPConnectorOnboarded`
+- `ERPConnectorVersionDeprecated`
+
+---
+
+### 4.6 Source System Role & Precedence Policy
+
+**4.6.1 Process flow**
+- How a client's decision — "is this ERP a **contributing source** feeding survivorship (3.4), or does the organization expect AptoMDM to **defer to it as system-of-record** for a given domain" — is captured explicitly, per source system, per domain, before onboarding
+- How this policy decision flows into 3.4 survivorship weighting and 14.4 conflict handling, rather than being assumed implicitly by whoever configures the connector
+
+**4.6.2 Business rules**
+- Every ERP source system must have an explicit role declaration per domain before it can go live — "contributing source" is the platform default and must be deliberately overridden to "system-of-record deference," never the reverse
+- A "system-of-record deference" declaration for a domain does not exempt that ERP's data from validation (6.2) or quality scoring (10.2) — deference affects survivorship precedence only, never data-quality enforcement
+- If an existing SAP MDG (or equivalent competing governance layer) is present at the client, this must be recorded here explicitly, since two governance systems asserting authority over the same domain is a resolvable-in-advance decision, not a runtime conflict to discover later
+
+**4.6.3 UI screens**
+- Web: Source role declaration screen (source system × domain → contributing / deference)
+- Web: Competing-governance-system disclosure screen (e.g. "SAP MDG is present for Material domain")
+
+**4.6.4 DB schema**
+- `MDM_SOURCE_DOMAIN_ROLE` table
+
+**4.6.5 Events**
+- `SourceDomainRoleChanged`
+
+---
+
+### 4.7 Middleware / iPaaS Passthrough Integration
+
+**4.7.1 Process flow**
+- How AptoMDM connects through a client's existing integration bus (MuleSoft, Dell Boomi, SAP Cloud Platform Integration, Azure Integration Services, Kafka-based ESB) instead of a direct point-to-point ERP connector, where the client already standardizes integration that way
+- How the same landing/standardization/matching pipeline (Phases 5–7) consumes data identically whether it arrived via a direct connector or via middleware — the pipeline must not know or care which path was used
+
+**4.7.2 Business rules**
+- Middleware passthrough is a transport choice only — it must never bypass 4.2 field mapping, 6.1 standardization, or 6.2 validation; middleware is not a shortcut around the pipeline
+- Idempotency keys (5.2) must be preserved end-to-end through the middleware layer — a message re-delivered by the iPaaS platform must still be recognized as a duplicate, not a new event
+- Where a client's middleware already performs its own field mapping or transformation, that logic must be made visible/documented to AptoMDM's stewards (11.1), since a hidden middleware transformation is an unauditable lineage gap (13.2)
+
+**4.7.3 UI screens**
+- Web: Middleware endpoint registration screen (webhook/queue endpoint per iPaaS platform)
+- Web: Middleware-sourced record lineage disclosure (flags that a transformation occurred upstream of AptoMDM)
+
+**4.7.4 DB schema**
+- `MDM_MIDDLEWARE_ENDPOINT` table
+
+**4.7.5 Events**
+- `MiddlewareMessageReceived`
 
 ---
 
@@ -1592,7 +1705,7 @@ Per the Senior Architect Mindset's build sequence, the recommended module design
 1. Phase 1 (1.1 → 1.5) — Foundation
 2. Phase 2 (2.1 → 2.6) — Canonical Model
 3. Phase 3 (3.1 → 3.5) — Metadata
-4. Phase 4 (4.1 → 4.3) — Source Integration
+4. Phase 4 (4.1 → 4.7) — Source Integration & ERP Connectivity (4.1–4.3 platform framework, then 4.4–4.7 protocol adapters, packaged ERP connectors, source precedence policy, and middleware passthrough)
 5. Phase 5 (5.1 → 5.4) — Ingestion
 6. Phase 6 (6.1 → 6.3) — Standardization & Validation
 7. Phase 7 (7.1 → 7.3) — Matching
@@ -1612,4 +1725,4 @@ This is the key discipline carried from the Senior Architect Mindset: don't desi
 
 ---
 
-*End of AptoMDM 2026 Design Roadmap — Version 1.0*
+*End of AptoMDM 2026 Design Roadmap — Version 1.1*
