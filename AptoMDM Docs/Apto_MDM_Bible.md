@@ -1,7 +1,16 @@
 # AptoMDM 2026 — Project Bible
 
-> **Version 1.0** — Initial creation. Seeded from `AptoMDM_Design_Roadmap.md` (v1.1) and the Senior Architect Mindset design brief. No modules have entered detailed (5-layer) design yet — this Bible currently records roadmap-level and architecture-level decisions only. Module-level "Finalized Design Decisions" subsections and the Section 7 status table will update at each module's design close, per the same amendment discipline as AptoWMS.
+> **Version 1.1** — current
 > August 2026 | Confidential — Apto Engineering
+
+---
+
+## Version History
+
+| Version | Date | Changed by | Summary of changes |
+|---|---|---|---|
+| **1.1** | Aug 2026 | Architecture review | **Locked the application tech stack** (Section 5 expanded): Frontend **React + Vite**; Backend **Rust + Axum**; DB **PostgreSQL** (unchanged); **no AI/ML integration in initial build** — Match Decisioning (7.3), Confidence Scoring (8.3), and Data Enrichment (6.3) ship as deterministic rule/config-driven engines only. Added supporting stack decisions consistent with the Rust backend: `sqlx` for compile-time-checked DB access, `tokio` async runtime, `utoipa` for OpenAPI generation (API-first pillar), `rdkafka` for the Kafka event bus, Redis for the metadata/rules cache, `strsim`/`pg_trgm` for deterministic fuzzy matching (no ML model). **Added Section 8.0 — Platform-Wide Technical Conventions** (schema standard, event envelope, permission naming pattern, AI boundary) ahead of the existing domain subsections, so Module 1.1 inherits conventions instead of inventing them. **Added four new Section 8 subsections** closing prior coverage gaps: 8.12 Data Ingestion, 8.13 Standardization & Validation, 8.14 Observability & Scalability, 8.15 Reference Data & Localization. Section 9 (File Reference Guide) unchanged; Section 10 open items updated to remove the now-resolved tech-stack question and add two new stack-driven open items. |
+| 1.0 | Aug 2026 | Initial draft | Initial 10-section Project Bible seeded from `AptoMDM_Design_Roadmap.md` (v1.1) and the Senior Architect Mindset. No modules in detailed design yet; all 59 modules recorded as Not Started. |
 
 ---
 
@@ -144,6 +153,32 @@ Matching, quality scoring, and distribution are event-driven so no engine blocks
 - **Secrets management:** Vault — all connector credentials, never in DB or config files
 - **Authentication:** JWT — stateless, validated on every request
 - **Authorization:** RBAC + ABAC — roles at tenant/domain level, attribute-level access layered on top (Phase 15)
+
+### Application stack — Frontend
+
+- **Framework:** React + Vite
+- **Data fetching:** TanStack Query (React Query) — aligns with the event-driven pillar by making cache invalidation explicit rather than polling
+- **Typed API contract:** frontend types generated from the backend's OpenAPI spec (see `utoipa` below) — frontend and backend must never hand-maintain two separate type definitions for the same API
+- **State management:** component/local state by default; a global store (Zustand or equivalent) only where cross-screen state genuinely requires it — avoid defaulting to a heavy global store for every screen
+
+### Application stack — Backend
+
+- **Language / framework:** Rust + Axum
+- **Async runtime:** Tokio
+- **Database access:** `sqlx` — compile-time-checked SQL, no ORM query-builder abstraction between the code and the actual SQL. This is a deliberate fit with the platform's **explainability pillar**: a golden-attribute survivorship query should be readable and auditable as SQL, not hidden behind ORM-generated joins.
+- **API documentation:** `utoipa` — generates the OpenAPI spec directly from Axum route/handler definitions, which is what the frontend's typed client (above) consumes. This makes "API-first" mechanically enforced rather than a written policy.
+- **Kafka client:** `rdkafka`
+- **Caching:** Redis — used for the Phase 3 metadata/rules cache (domain, entity, attribute, matching, survivorship, validation config) and session-scoped data. Per the Senior Architect Mindset's explicit warning, **cache invalidation on metadata/rule publish (Module 3.1) must be immediate and event-driven** — a stale cached rule silently misapplied is a correctness defect, not a performance one.
+
+### Matching & search infrastructure
+
+- **Deterministic fuzzy matching, no ML model:** `strsim` (Rust crate — Levenshtein, Jaro-Winkler, and similar string-distance algorithms) for in-process composite scoring (Module 7.2), backed by PostgreSQL `pg_trgm` (trigram similarity + GIN index) for the pre-filtering/candidate-generation pass, so the matching engine never has to fuzzy-compare against the entire table.
+- Every matching technique used is explainable and deterministic by construction — no embedding/vector similarity, no black-box scoring — consistent with the "every survivorship outcome must be explainable" principle (8.5) and the "no AI/ML integration" decision below.
+
+### AI / ML boundary
+
+- **No AI or ML integration in the initial build.** Match Decisioning (7.3), Confidence Scoring (8.3), and Data Enrichment (6.3) are deterministic, rule- and configuration-driven engines only — no ML model scores a match, sets a confidence value, or enriches a record in Phase 1.
+- This is a **build-scope decision, not a permanent architectural ceiling.** The platform's metadata-driven design (8.1 below) does not preclude a future ML-assisted matching or enrichment module — but if one is added later, it must follow the same AI-boundary discipline AptoWMS applies: **advisory only, never a silent auto-decision.** Any future ML-assisted score would still route through the existing Review-band steward queue (Module 7.3), never bypass it. See Section 8.0 for the explicit boundary statement, and Section 10 for this as a tracked forward item.
 
 ### Multi-tenancy
 
@@ -352,6 +387,29 @@ Every module is designed in five layers, in order — identical discipline to Ap
 
 > These are architecture-level decisions locked during Roadmap design, ahead of any module's detailed 5-layer session. Each subsection will be refined and superseded, where applicable, by its owning module's actual design close, per the amendment rule in Section 6. Read this section as "what we've already committed to," not as a substitute for the modules themselves.
 
+### 8.0 Platform-Wide Technical Conventions
+
+> Declared before Module 1.1 begins, so the first module inherits these conventions rather than inventing them — the same discipline behind AptoWMS's 8.16/8.17/8.19. Every module's Layer 4 (schema) and Layer 5 (events) must conform to this subsection; deviations require explicit justification recorded in that module's file.
+
+**Standard DB columns**
+- Every operational table carries: `id` (UUID primary key), `tenant_id` (mandatory, indexed — see 8.10), `created_at`, `created_by`, `updated_at`, `updated_by`
+- **Configuration tables** (domain, entity, attribute, rule, policy definitions) use soft-delete: `is_deleted`, `deleted_at`, `deleted_by`
+- **Source and golden-record tables** (`MDM_SOURCE_RECORD`, `MDM_GOLDEN_RECORD`, `MDM_GOLDEN_ATTRIBUTE`) never use soft-delete at all — they use the non-destructive retirement/versioning pattern from 8.4/8.8 (`merged_into`, `effective_from`/`effective_to`, `version`) instead, because "deleted" is not a valid state for a record that must remain traceable and unmergeable-in-reverse
+- Custom/tenant-extensible fields, where a module needs them, use a `custom_data JSONB NULL DEFAULT '{}'` column — no fixed `custom_text_1..N` columns, matching the pattern AptoWMS standardized on at its Module 1.12
+
+**Standard event envelope**
+- Every event published to Kafka, from any module, carries the same mandatory envelope fields: `event_id` (UUID, the deduplication key), `tenant_id`, `correlation_id` (groups all events from one logical operation), `timestamp_utc`
+- Events publish after DB commit, never inside a transaction
+- Consumers are idempotent by construction — deduplicate on `event_id`, never assume at-most-once delivery
+- Breaking changes to an event's payload schema require a new event version, never an in-place silent change
+
+**Permission naming pattern**
+- Fixed pattern: `Domain.Module.Action` (e.g. `CUSTOMER.GOLDEN_RECORD.MERGE`, `CONFIG.MATCH_RULE.EDIT`) — declared here so Module 1.3 designs the permission matrix against a pattern that every later module can extend without renegotiating the format
+- VIEW is a prerequisite permission for any other action on the same screen — same convention as AptoWMS
+
+**AI / ML boundary**
+- No AI or ML integration in the initial build (see Section 5). If a future module introduces ML-assisted matching, enrichment, or scoring, it must follow the same boundary AptoWMS applies to its AI Advisory phase: **AI advises, it never mutates the golden record directly.** Any ML-produced score must still route through the existing human/steward review path (Module 7.3) rather than create a new auto-decision path — this is a platform boundary, not a per-module choice.
+
 ### 8.1 Platform & Architecture
 
 - Cloud-native, event-driven, horizontally scalable modular monolith (Build Phase 1)
@@ -433,6 +491,35 @@ Every module is designed in five layers, in order — identical discipline to Ap
 - A target system only receives attributes it is entitled to per subscription and classification rules (Module 14.2)
 - Reconciliation mismatches route to the steward workbench (Module 11.1) — never silently auto-corrected (Module 14.3)
 
+### 8.12 Data Ingestion
+
+- Landing-zone records (`MDM_SOURCE_RECORD`) are immutable once written — corrections arrive as new versions, never in-place edits (Module 5.4)
+- Every ingestion channel — batch, real-time/CDC, file, manual — lands in the same raw store and flows through the identical standardization → validation → matching pipeline; no channel gets a shortcut path (Modules 5.1–5.3)
+- A batch that fails schema validation at the header level is rejected wholesale with a clear reason; partial-row failures within an otherwise-valid batch are quarantined per row, never failing the whole batch silently (Module 5.1)
+- Idempotency key `source_system + source_record_id + event_id + version` (already declared in 8.9) is enforced at ingestion, not downstream — out-of-order or duplicate events are detected and discarded before they reach standardization
+
+### 8.13 Standardization & Validation
+
+- Standardization must be deterministic and re-runnable — re-standardizing the same raw value always produces the same standardized value (Module 6.1); this is a hard requirement given the "no AI/ML" decision in Section 5 — standardization rules are rule-engine-based, not model-based, specifically so this determinism holds
+- Standardized values are stored alongside raw values, never overwriting them
+- Validation failures are attribute-level, not record-level — a record with one bad attribute is quarantined for that attribute while other valid attributes proceed where domain config allows (Module 6.2)
+- A quarantined record is always visible to a data steward with a plain-language reason — never silently dropped or force-passed
+- Enrichment (Module 6.3) is additive and competes for survivorship like any other source — it never overwrites a source-provided value outright, and enrichment service failures never block the pipeline
+
+### 8.14 Observability & Scalability
+
+- Every engine (ingestion, standardization, matching, survivorship, distribution) exposes latency, throughput, and error-rate metrics as a baseline — no engine ships without observability (Module 16.1)
+- No engine may assume unbounded single-node processing — every batch/streaming engine declares its partitioning strategy (by tenant/domain) at design time (Module 16.2)
+- Per the Senior Architect Mindset's explicit "design for failure" principle, every module's design session must produce a tested answer for its own failure scenarios (source system down, malformed data, mid-batch crash, partial publish failure, duplicate event delivery, concurrent merge, rejected/incorrect merge needing undo) before that module is considered closed — this is a Layer 2 (Business Rules) obligation, not a separate afterthought phase
+- Golden records and merge/unmerge history must never be silently lost or duplicated during recovery — this is only safe because of the idempotency (8.9/8.12) and append-only audit (8.8) guarantees already locked elsewhere in this section; Module 16.3 (DR & Failover) does not invent new safety guarantees, it exercises the ones already designed in
+
+### 8.15 Reference Data & Localization
+
+- Reference lists (countries, currencies, industry codes, ID types) ship as platform-owned "system" lists; tenants may extend but never delete system values (Module 1.4)
+- A reference value in use by any golden record cannot be hard-deleted, only deprecated
+- All DB timestamps are stored in UTC without exception; display resolution follows the same priority chain AptoWMS uses — User → Warehouse/Tenant-equivalent → Tenant — highest specificity wins
+- Reference Data is itself an MDM domain (per 8.2), not a platform special case — it eventually flows through the same ingestion/standardization/golden-record pipeline as any other domain, not a separate hardcoded table set
+
 ---
 
 ## 9. File Reference Guide
@@ -461,6 +548,8 @@ Every module is designed in five layers, in order — identical discipline to Ap
 | Dual-control action list — which actions require two independent approvers (bulk unmerge, classification downgrade, others)? | Phase 15 roadmap scope | Module 15.5 — Segregation of Duties & Approval Integrity |
 | Reporting DB retention tiers per tenant subscription — mirrors an AptoWMS pattern, not yet defined for MDM | Phase 10 roadmap scope | Module 10.3 — Data Quality Dashboard & Reporting |
 | Relationship to AptoWMS/AptoTMS product instances — does an MDM-active tenant's WMS/TMS instance become a *consuming* target system by default, or is that an explicit opt-in? | Cross-product architecture question | Module 14.2 — Target System Subscription Management, or a dedicated cross-product amendment |
+| **Fuzzy-match threshold tuning inputs** — with no ML model (Section 5), initial `pg_trgm`/`strsim` thresholds must be set from sample data or client input, not learned; what sample data seeds the first tenant's Module 3.3 configuration? | Bible v1.1 tech-stack lock | Module 3.3 — Matching Rule Configuration, first tenant onboarding |
+| **Frontend/backend type-contract tooling** — `utoipa`-generated OpenAPI spec needs a concrete TypeScript client generation step (e.g. `openapi-typescript`) wired into the build; not yet chosen | Bible v1.1 tech-stack lock | Module 1.5 — Screen & API Standardization Framework |
 
 ### How to run each design session
 
@@ -485,4 +574,4 @@ Every module is designed in five layers, in order — identical discipline to Ap
 
 ---
 
-*End of AptoMDM 2026 Project Bible — Version 1.0*
+*End of AptoMDM 2026 Project Bible — Version 1.1*
