@@ -527,10 +527,10 @@ Every module is designed in five layers, in order — identical discipline to Ap
 | Topic | File |
 |---|---|
 | Full 16-phase, 59-module roadmap with 5-layer scope for every module | `AptoMDM_Design_Roadmap.md` (v1.1) |
-| Architecture overview, all finalized decisions | `AptoMDM_Project_Bible.md` (this file) |
+| Architecture overview, all finalized decisions | `Apto_MDM_Bible.md` (this file) |
 | Senior architect design principles the Roadmap and Bible are built from | `Senior_Architect_Mindset` (source document) |
-| All stubbed design elements — what they are, where they will be resolved | `AptoMDM_Stubs_Tracker.md` — **not yet created**; recommended before Module 1.1 design begins |
-| Active design session rules, response rules, cross-cutting decisions | `AptoMDM_Project_Instructions.md` — **not yet created** |
+| All stubbed design elements — what they are, where they will be resolved | `AptoMDM_Stubs_Tracker.md` |
+| Active design session rules, response rules, cross-cutting decisions | `AptoMDM_Project_Instructions.md` |
 | Module-level detailed designs (process flow, business rules, screens, schema, events) | `AptoMDM_Module_{phase}_{sequence}_{Name}.md` — **none created yet; Module 1.1 is next in design order** |
 
 ---
@@ -556,7 +556,7 @@ Every module is designed in five layers, in order — identical discipline to Ap
 1. State the module number and name
 2. Raise any concept-level questions before starting Layer 1
 3. Go through all 5 layers in order — agree each layer before moving to the next
-4. Check the Stubs Tracker (once created) — does this module consume any stubs? Does it introduce new ones?
+4. Check the Stubs Tracker — does this module consume any stubs? Does it introduce new ones?
 5. After all 5 layers are agreed — generate the module `.md` file
 6. Update the Stubs Tracker
 7. Update this Project Bible's Section 7 status table and the relevant Section 8 subsection
