@@ -29,7 +29,8 @@ This repository now keeps the toolkit's documentation controls alongside the mai
 - Use one module file per module and versioned amendment sections for later changes.
 - Review changes as a documentation unit: Bible, Roadmap, Instructions, Stubs Tracker, Ledger, and the module file.
 - The attached `aptomdm_toolkit/.claude/commands/` directory contains optional command playbooks for kickoff, layer progression, gap checks, synchronization, close, and ledger maintenance. Those commands currently expect the toolkit's canonical Bible name `AptoMDM_Project_Bible.md`; this main repo retains the existing `Apto_MDM_Bible.md` name, so update command paths before running them from this root.
+- `Source Architecture/MDM-Hub_Roadmap_v2.0.md` is preserved source material from the supplied MDM-Hub blueprint. Its seven broad phases are mapped to the detailed 16-phase execution roadmap; it is not a second status authority.
 
 ## First implementation
 
-The next module is **1.1 — Tenant & Organization Setup**. Start by reconciling the `sqlx` migration tooling open item, then initialize the Ledger and create the draft module file under `Modules/Phase 1/`.
+The next module is **1.2 — Business Domain Registry**. Start by checking open Stubs 2 and 3 for applicability, then initialize the Ledger and create the draft module file under `Modules/Phase 1/`.

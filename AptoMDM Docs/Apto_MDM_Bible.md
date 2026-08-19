@@ -379,7 +379,7 @@ Every module is designed in five layers, in order — identical discipline to Ap
 | 16.3 | Disaster Recovery & Failover | 🔲 Not started |
 | 16.4 | API Gateway & Rate Limiting | 🔲 Not started |
 
-**Total: 16 phases, 59 modules, 0 complete, 59 not started.** Design order per the Roadmap's Design Order Summary: Phase 1 → 2 → 3 → 4 → 5 → ... → 16, modules within each phase in ascending numeric order.
+**Total: 16 phases, 59 modules, 1 complete, 58 not started.** Design order per the Roadmap's Design Order Summary: Phase 1 → 2 → 3 → 4 → 5 → ... → 16, modules within each phase in ascending numeric order. **Next module: 1.2 — Business Domain Registry.**
 
 ---
 
@@ -531,7 +531,7 @@ Every module is designed in five layers, in order — identical discipline to Ap
 | Senior architect design principles the Roadmap and Bible are built from | `Senior_Architect_Mindset` (source document) |
 | All stubbed design elements — what they are, where they will be resolved | `AptoMDM_Stubs_Tracker.md` |
 | Active design session rules, response rules, cross-cutting decisions | `AptoMDM_Project_Instructions.md` |
-| Module-level detailed designs (process flow, business rules, screens, schema, events) | `AptoMDM_Module_{phase}_{sequence}_{Name}.md` — **none created yet; Module 1.1 is next in design order** |
+| Module-level detailed designs (process flow, business rules, screens, schema, events) | `Modules/Phase {phase}/AptoMDM_Module_{phase}_{sequence}_{Name}.md` — Module 1.1 closed; Module 1.2 is next |
 
 ---
 

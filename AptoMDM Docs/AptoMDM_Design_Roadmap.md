@@ -1700,6 +1700,8 @@ Complete all 5 layers before moving to the next module. A module is not "done" i
 
 ## Design Order Summary
 
+**Next module: 1.2 — Business Domain Registry.** Module 1.1 is closed in the Project Bible and its detailed record is stored under `Modules/Phase 1/`.
+
 Per the Senior Architect Mindset's build sequence, the recommended module design order across phases is:
 
 1. Phase 1 (1.1 → 1.5) — Foundation
