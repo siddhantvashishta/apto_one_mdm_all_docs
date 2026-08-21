@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "defaultMode": "plan",
-    "deny": [
-      "Read(./Devlopment docs/**)",
-      "Read(./QA/**)"
-    ]
-  }
-}
