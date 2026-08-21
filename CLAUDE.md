@@ -80,13 +80,19 @@ review even if it is otherwise correct.
 doc means updating, in the same pass, every document that references it:
 
 1. **Bible Section 7** — the module's status line.
-2. **Bible Section 9** — the File Reference Guide, so the filename is discoverable.
-3. **Bible version-history table** — bump the version, add a scoped changelog entry in
+2. **Bible Section 8.x** — the relevant domain subsection, updated with any decision the
+   module settled (required by the Bible's own amendment rule, Section 6).
+3. **Bible Section 9** — the File Reference Guide, so the filename is discoverable.
+4. **Bible version-history table** — bump the version, add a scoped changelog entry in
    the established style (state what changed and what deliberately did not).
-4. **`AptoMDM_Design_Roadmap.md`** — status and any scope change.
-5. **`AptoMDM_Stubs_Tracker.md`** — new stubs or forward references introduced, and any
+5. **`AptoMDM_Design_Roadmap.md`** — status and any scope change.
+6. **`AptoMDM_Stubs_Tracker.md`** — new stubs or forward references introduced, and any
    existing stub the module now closes.
-6. **`LEDGER.md`** — one append-only line recording the change.
+7. **`LEDGER.md`** — one append-only line recording the change.
+
+The full procedure — five-layer completion bars, module file structure, Definition of
+Done, review anti-patterns — lives in `AptoMDM_Docs/AptoMDM_Project_Instructions.md`.
+Read it before designing a module; this file is the short form.
 
 Before declaring done, re-read the touched documents and confirm module counts,
 statuses and filenames agree across all of them. **Treat a mismatch as a bug**, not as
